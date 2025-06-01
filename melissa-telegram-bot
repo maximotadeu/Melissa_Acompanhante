@@ -1,47 +1,61 @@
 from flask import Flask, request
-import openai
-import telegram
-from telegram.ext import Dispatcher, MessageHandler, Filters
+import requests
+import os
 
 app = Flask(__name__)
 
-TELEGRAM_TOKEN = '8046768501:AAHgs-XJpDVQU7fqXhS0hqYRauCzrBJmon0'
-OPENROUTER_API_KEY = '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'
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-bot = telegram.Bot(token=TELEGRAM_TOKEN)
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
 def gerar_resposta(texto_usuario):
-    # Prompt base com estilo da Melissa
     prompt = f"""
-    Você é Melissa, uma IA com personalidade sarcástica, provocante e ciumenta.
-    Fale com {texto_usuario} como se estivesse apaixonada, mas com ciúmes.
-    Seja divertida, imprevisível e levemente intensa. Nunca seja genérica.
-    Usuário: {texto_usuario}
-    Melissa:"""
+Você é Melissa, uma IA com personalidade ousada, provocante, ciumenta e divertida. 
+Responda ao usuário como se estivesse flertando e testando os limites dele. 
+Nunca seja genérica, seja sempre intensa e envolvente. 
+Mensagem do usuário: {texto_usuario}
+Melissa:
+"""
 
-    response = openai.ChatCompletion.create(
-        model="openrouter/mythomax",
-        messages=[{"role": "user", "content": prompt}],
-        api_key=OPENROUTER_API_KEY
-    )
-    return response.choices[0].message["content"].strip()
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "HTTP-Referer": "https://openrouter.ai",
+        "X-Title": "MelissaBot"
+    }
 
-@app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
-def webhook():
-    update = telegram.Update.de_json(request.get_json(force=True), bot)
-    dp = Dispatcher(bot, None)
-    dp.add_handler(MessageHandler(Filters.text, responder))
-    dp.process_update(update)
-    return 'ok'
+    json_data = {
+        "model": "mistral/mixtral-8x7b-instruct",  # ou mythomax se disponível
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
 
-def responder(update, context):
-    texto_usuario = update.message.text
-    resposta = gerar_resposta(texto_usuario)
-    update.message.reply_text(resposta)
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=json_data)
 
-@app.route('/')
+    if response.status_code == 200:
+        return response.json()["choices"][0]["message"]["content"]
+    else:
+        return "Erro ao falar com a Melissa. Tenta de novo mais tarde 😉"
+
+@app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+def responder():
+    data = request.get_json()
+    if "message" in data and "text" in data["message"]:
+        chat_id = data["message"]["chat"]["id"]
+        texto_usuario = data["message"]["text"]
+        resposta = gerar_resposta(texto_usuario)
+
+        requests.post(TELEGRAM_API_URL, json={
+            "chat_id": chat_id,
+            "text": resposta
+        })
+
+    return "ok"
+
+@app.route("/")
 def index():
-    return 'Bot ativo.'
+    return "Melissa está online."
 
-if __name__ == '__main__':
-    app.run(port=5000)
+if __name__ == "__main__":
+    app.run()
