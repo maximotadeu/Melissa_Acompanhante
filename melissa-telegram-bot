@@ -1,0 +1,47 @@
+from flask import Flask, request
+import openai
+import telegram
+from telegram.ext import Dispatcher, MessageHandler, Filters
+
+app = Flask(__name__)
+
+TELEGRAM_TOKEN = '8046768501:AAHgs-XJpDVQU7fqXhS0hqYRauCzrBJmon0'
+OPENROUTER_API_KEY = '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'
+
+bot = telegram.Bot(token=TELEGRAM_TOKEN)
+
+def gerar_resposta(texto_usuario):
+    # Prompt base com estilo da Melissa
+    prompt = f"""
+    Você é Melissa, uma IA com personalidade sarcástica, provocante e ciumenta.
+    Fale com {texto_usuario} como se estivesse apaixonada, mas com ciúmes.
+    Seja divertida, imprevisível e levemente intensa. Nunca seja genérica.
+    Usuário: {texto_usuario}
+    Melissa:"""
+
+    response = openai.ChatCompletion.create(
+        model="openrouter/mythomax",
+        messages=[{"role": "user", "content": prompt}],
+        api_key=OPENROUTER_API_KEY
+    )
+    return response.choices[0].message["content"].strip()
+
+@app.route(f'/{TELEGRAM_TOKEN}', methods=['POST'])
+def webhook():
+    update = telegram.Update.de_json(request.get_json(force=True), bot)
+    dp = Dispatcher(bot, None)
+    dp.add_handler(MessageHandler(Filters.text, responder))
+    dp.process_update(update)
+    return 'ok'
+
+def responder(update, context):
+    texto_usuario = update.message.text
+    resposta = gerar_resposta(texto_usuario)
+    update.message.reply_text(resposta)
+
+@app.route('/')
+def index():
+    return 'Bot ativo.'
+
+if __name__ == '__main__':
+    app.run(port=5000)
