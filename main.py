@@ -151,7 +151,7 @@ def generate_response(prompt: str) -> str:
     }
 
     payload = {
-        "model": "nous-hermes-2-mixtral:free",
+        "model": "xwin-mlewd-7b",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
@@ -193,7 +193,7 @@ def home():
         "status": "online",
         "service": "MelissaBot",
         "version": "2.1",
-        "model": "nous-hermes-2-mixtral:free"
+        "model": "xwin-mlewd-7b"
     })
 
 @app.route("/health")
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     logger.info("\n" + "="*50)
     logger.info(f"🔥 Melissa Bot - Versão 2.1")
     logger.info(f"🔧 Porta: {PORT}")
-    logger.info(f"🤖 Modelo: nous-hermes-2-mixtral:free")
+    logger.info(f"🤖 Modelo: xwin-mlewd-7b")
     logger.info("="*50 + "\n")
     
     app.run(host="0.0.0.0", port=PORT, debug=False)
