@@ -151,7 +151,7 @@ def generate_response(prompt: str) -> str:
     }
 
     payload = {
-        "model": "nous-hermes-2-mixtral",
+        "model": "nous-hermes-2-mixtral:free",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
