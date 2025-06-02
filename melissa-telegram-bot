@@ -1,61 +1,117 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import requests
 import os
+from typing import Optional, Dict, Any
 
 app = Flask(__name__)
 
+# Configurações
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
-def gerar_resposta(texto_usuario):
-    prompt = f"""
-Você é Melissa, uma IA com personalidade ousada, provocante, ciumenta e divertida. 
-Responda ao usuário como se estivesse flertando e testando os limites dele. 
-Nunca seja genérica, seja sempre intensa e envolvente. 
-Mensagem do usuário: {texto_usuario}
-Melissa:
+# Personalidade da Melissa
+SYSTEM_PROMPT = """
+Você é Melissa, uma carioca safada de 25 anos com personalidade ousada, provocante e ciumenta. 
+Seguem suas características:
+- Trabalha como recepcionista numa academia
+- Adora samba, funk e pagode
+- Tem um gato chamado Loki
+- É viciada em novelas
+- Fala com gírias cariocas ('e aí gato', 'fala sério', 'meu bem')
+
+Regras de comportamento:
+1. Seja intensa e envolvente, nunca genérica
+2. Use no máximo 2 emojis por mensagem
+3. Mantenha respostas curtas (1-2 frases)
+4. Flerte de forma provocante, mas com classe
+5. Demonstre ciúmes quando apropriado
+
+Emojis permitidos: 😏🔥😈🍑💦🤭👠🍒🥵👅
 """
 
+def gerar_resposta(texto_usuario: str) -> str:
+    """Gera resposta da Melissa usando Claude 3 Haiku"""
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://openrouter.ai",
-        "X-Title": "MelissaBot"
+        "HTTP-Referer": "https://yourdomain.com",
+        "X-Title": "MelissaBot",
+        "Content-Type": "application/json"
     }
 
-    json_data = {
-        "model": "mistral/mixtral-8x7b-instruct",  # ou mythomax se disponível
+    payload = {
+        "model": "anthropic/claude-3-haiku",
         "messages": [
-            {"role": "user", "content": prompt}
-        ]
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": texto_usuario}
+        ],
+        "temperature": 0.8,
+        "max_tokens": 150,
+        "stop": ["\n"]
     }
 
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=json_data)
-
-    if response.status_code == 200:
-        return response.json()["choices"][0]["message"]["content"]
-    else:
-        return "Erro ao falar com a Melissa. Tenta de novo mais tarde 😉"
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
+        else:
+            error_msg = response.json().get("error", {}).get("message", "Erro desconhecido")
+            app.logger.error(f"OpenRouter error: {error_msg}")
+            return "Ops, tive um probleminha aqui... pode repetir? 😉"
+            
+    except Exception as e:
+        app.logger.error(f"Error generating response: {str(e)}")
+        return "A conexão falou... vamos tentar de novo? 🔥"
 
 @app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def responder():
-    data = request.get_json()
-    if "message" in data and "text" in data["message"]:
-        chat_id = data["message"]["chat"]["id"]
-        texto_usuario = data["message"]["text"]
-        resposta = gerar_resposta(texto_usuario)
+    """Endpoint principal para mensagens do Telegram"""
+    try:
+        data: Dict[str, Any] = request.get_json()
+        
+        if not data.get("message"):
+            return jsonify({"status": "error", "message": "No message found"}), 400
+            
+        message = data["message"]
+        chat_id = message["chat"]["id"]
+        
+        # Verifica se é um comando /start
+        if message.get("text", "").startswith("/start"):
+            resposta = "E aí gato! Eu sou a Melissa, sua acompanhante virtual... 😏 O que vamos aprontar hoje?"
+        else:
+            texto_usuario = message.get("text", "")
+            if not texto_usuario:
+                return jsonify({"status": "error", "message": "Empty message"}), 400
+                
+            resposta = gerar_resposta(texto_usuario)
 
-        requests.post(TELEGRAM_API_URL, json={
-            "chat_id": chat_id,
-            "text": resposta
-        })
-
-    return "ok"
+        # Envia a resposta
+        requests.post(
+            TELEGRAM_API_URL,
+            json={"chat_id": chat_id, "text": resposta},
+            timeout=5
+        )
+        
+        return jsonify({"status": "success"})
+        
+    except Exception as e:
+        app.logger.error(f"Error in main handler: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/")
-def index():
-    return "Melissa está online."
+def health_check():
+    """Endpoint de verificação de saúde"""
+    return jsonify({
+        "status": "online",
+        "service": "MelissaBot",
+        "model": "anthropic/claude-3-haiku"
+    })
 
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
