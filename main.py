@@ -151,7 +151,7 @@ def generate_response(prompt: str) -> str:
     }
 
     payload = {
-        "model": "goliath-120b",
+        "model": "mlewd-xwin-v0.2",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
@@ -193,7 +193,7 @@ def home():
         "status": "online",
         "service": "MelissaBot",
         "version": "2.1",
-        "model": "goliath-120b"
+        "model": "mlewd-xwin-v0.2"
     })
 
 @app.route("/health")
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     logger.info("\n" + "="*50)
     logger.info(f"🔥 Melissa Bot - Versão 2.1")
     logger.info(f"🔧 Porta: {PORT}")
-    logger.info(f"🤖 Modelo: goliath-120b")
+    logger.info(f"🤖 Modelo: mlewd-xwin-v0.2")
     logger.info("="*50 + "\n")
     
     app.run(host="0.0.0.0", port=PORT, debug=False)
